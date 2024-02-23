@@ -1,6 +1,12 @@
 // METHODS FOR REPLACEMENT
+def replaceTemplate(String fileName, String outputPath, Map replacementMap) {
+  def content = readFile("${env.helmTemplateDir}/${fileName}")
+  replacementMap.each { key, value -> content = content.replace(key, value) }
+  writeFile file: outputPath, text: content
+}
+
 def replaceChart() {
-  replaceTemplate("Chart.yaml", "${env.helmChartDir}/Chart.yaml", ["{{CHART_VERSION}}": "${env.chartVersion}"])
+  replaceTemplate("Chart.yaml", "${env.currentDir}/charts/${params.chartName}/Chart.yaml", ["{{CHART_VERSION}}": "${env.chartVersion}"])
 }
 
 // METHODS FOR HELM
@@ -17,7 +23,7 @@ pipeline {
   parameters {
     string(name: 'appName', defaultValue: params.appName, description: 'Please fill application name.')
     string(name: 'namespace', defaultValue: params.namespace, description: 'Please fill namespace.')
-    string(name: 'chartName', choices: ['bcc', 'cp', 'csc', 'ioc', 'ucp'], description: 'Please select chart name.')
+    choice(name: 'chartName', choices: ['bcc', 'cp', 'csc', 'ioc', 'ucp'], description: 'Please select chart name.')
     string(name: 'chartVersion', defaultValue: params.chartVersion, description: 'Please fill version.')
     choice(name: 'buildType', choices: ['alpha'], description: 'Please select build type.')
     booleanParam(name: 'releaseTag', description: '')
@@ -25,7 +31,6 @@ pipeline {
 
   environment {
     currentDir = sh(script: 'sudo pwd', returnStdout: true).trim()
-    helmChartDir = "${env.currentDir}/helm-chart"
     helmTemplateDir = "${env.currentDir}/helm-template"
     kubeConfigDir = "/root/.kube/Config"
 
@@ -80,10 +85,9 @@ pipeline {
         script {
           try {
             echo "Replace - Starting."
-            sh "sudo mkdir -p ${env.helmChartDir}/assets"
             replaceChart()
-            // sh "sudo cp ${env.helmTemplateDir}/service.yaml ${env.helmChartDir}/templates"
-            // sh "sudo ls -al ${env.helmChartDir}"
+            sh "sudo ls -al ${env.currentDir}/charts/${params.chartName}"
+            sh "cat ${env.currentDir}/charts/${params.chartName}/Chart.yaml"
             echo "Replace - Completed."
           } catch(err) {
             echo "Replace - Failed."
@@ -101,13 +105,15 @@ pipeline {
             echo "Package - Starting."
             sh """
               sudo mkdir -p ${env.currentDir}/assets/${params.chartName}
+
+              sudo helm dependency update ${env.currentDir}/charts/${params.chartName}/
+
               sudo helm package ${env.currentDir}/charts/${params.chartName} -d ${env.currentDir}/temp
               sudo helm repo index --url assets/${params.chartName} --merge ${env.currentDir}/index.yaml ${env.currentDir}/temp
               
               sudo mv ${env.currentDir}/temp/${params.chartName}-*.tgz ${env.currentDir}/assets/${params.chartName}
               sudo mv ${env.currentDir}/temp/index.yaml ${env.currentDir}/
               sudo rm -rf ${env.currentDir}/temp
-              sudo ls -al
             """
             echo "Package - Completed."
           } catch (err) {

@@ -1,0 +1,10 @@
+apiVersion: v2
+name: ucp
+description: A Helm chart for Kubernetes
+type: application
+version: "{{CHART_VERSION}}"
+appVersion: "1.0.0"
+dependencies:
+  - name: ucp-ui-chart
+    repository: "https://pongsathorn-ph.github.io/ucp-ui/helm-chart/"
+    version: "2024.02.00-0001-alpha"

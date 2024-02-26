@@ -114,6 +114,9 @@ pipeline {
               sudo mv ${env.currentDir}/temp/${params.chartName}-*.tgz ${env.currentDir}/assets/${params.chartName}
               sudo mv ${env.currentDir}/temp/index.yaml ${env.currentDir}/
               sudo rm -rf ${env.currentDir}/temp
+
+              sudo ls -al ${env.currentDir}/assets/${params.chartName}
+              sudo cat ${env.currentDir}/index.yaml
             """
             echo "Package - Completed."
           } catch (err) {
@@ -124,7 +127,7 @@ pipeline {
         }
       }
     }
-/*
+
     stage("Git commit and push") {
       steps {
         script {
@@ -164,6 +167,6 @@ pipeline {
         }
       }
     }
-*/
+
   }
 }

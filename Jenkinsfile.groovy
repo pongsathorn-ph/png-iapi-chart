@@ -6,7 +6,11 @@ def replaceTemplate(String fileName, String outputPath, Map replacementMap) {
 }
 
 def replaceChart() {
-  replaceTemplate('Chart.yaml', "${env.CURR_DIR}/charts/${params.chartName}/Chart.yaml", ['{{CHART_VERSION}}': "${env.CHART_VERSION}"])
+  def replacementMap = [
+    "{{CHART_VERSION}}": "${env.CHART_VERSION}", 
+    "{{DEPENDENCY_VERSION}}": "${env.DEPENDENCY_VERSION}"
+  ]
+  replaceTemplate('Chart.yaml', "${env.CURR_DIR}/charts/${params.chartName}/Chart.yaml", replacementMap)
 }
 
 // METHODS FOR HELM
@@ -56,11 +60,45 @@ pipeline {
     CHART_REPO_URL = 'https://pongsathorn-ph.github.io/png-iapi-chart/'
     CURR_BUILD = String.format('%04d', currentBuild.number)
     CHART_VERSION = "${params.chartVersion}-${env.CURR_BUILD}-${params.buildType}"
+    DEPENDENCY_VERSION = "2024.02.00-0001-alpha"
 
     LAST_REVISION_TAG = ""
   }
 
   stages {
+    stage('Initial parameter') {
+      when {
+        expression {
+          env.buildType == 'initial'
+        }
+      }
+      steps {
+        script {
+          currentBuild.displayName = "INITIAL 📌"
+        }
+        echo 'Completed.'
+      }
+    }
+
+    stage('Initial') {
+      when {
+        expression {
+          env.buildType != 'initial'
+        }
+      }
+      steps {
+        script {
+          currentBuild.displayName = "${params.chartVersion}-${env.CURR_BUILD}"
+          
+          if (params.buildType == 'ReleaseTag') {
+            withEnv(["chartVersion=${params.chartVersion}-${env.CURR_BUILD}"]) {
+              echo "Chart version: ${env.CHART_VERSION}"
+            }
+          }
+        }
+      }
+    }
+
     stage('Build and deploy Alpha') {
       when {
         expression {
@@ -68,24 +106,10 @@ pipeline {
         }
       }
       stages {
-        stage('Initial') {
-          steps {
-            script {
-              currentBuild.displayName = currentBuild.displayName + "  :  ALPHA"
-            }
-            script {
-              if (params.buildType == 'ReleaseTag') {
-                withEnv(["chartVersion=${params.chartVersion}-${env.CURR_BUILD}"]) {
-                  echo "Chart version: ${env.CHART_VERSION}"
-                }
-              }
-            }
-          }
-        }
-
         stage('Checkout') {
           steps {
             script {
+              currentBuild.displayName = "${currentBuild.displayName} : ALPHA"
               gitCheckout("${env.GIT_BRANCH_NAME}")
             }
           }
@@ -203,7 +227,6 @@ pipeline {
             script {
               try {
                 echo 'Push tag - Starting.'
-                currentBuild.displayName = "${currentBuild.displayName} : TAG 🏷️"
                 sh """
                   git tag ${params.chartVersion}
                   git push https://$GITHUB_CREDENTIAL_USR:$GITHUB_CREDENTIAL_PSW@github.com/pongsathorn-ph/png-iapi-chart.git ${params.chartVersion}
@@ -220,7 +243,7 @@ pipeline {
         
       }
     }
-    /*
+    
     stage('Confirm tag version') {
       when {
         expression {
@@ -234,15 +257,13 @@ pipeline {
         }
       }
     }
-    */
+    
     stage('Tag') {
-      /*
       when {
         expression {
           env.buildType == 'ReleaseTag' && params.chartVersion == env.tagVersion
         }
       }
-      */
       stages {
         stage('Prepare tag') {
           steps {
@@ -254,8 +275,8 @@ pipeline {
 
               job.builds.find {
                 if(it.result == hudson.model.Result.SUCCESS) {
-                  def is_BuildDev = it.actions.find{it instanceof ParametersAction}?.parameters.find{it.name == "BuildDev"}?.value
-                  echo "is_BuildDev: ${is_BuildDev}"
+                  // def is_BuildDev = it.actions.find{it instanceof ParametersAction}?.parameters.find{it.name == "BuildDev"}?.value
+                  // echo "is_BuildDev: ${is_BuildDev}"
                   // echo "Build name: ${it.fullDisplayName}"
                   // echo "Build number: ${it.getId()}"
 

@@ -1,20 +1,34 @@
 // METHODS FOR REPLACEMENT
 def replaceTemplate(String fileName, String outputPath, Map replacementMap) {
-  def content = readFile("${env.helmTemplateDir}/${fileName}")
+  def content = readFile("${env.HELM_TEMPLATE_DIR}/${fileName}")
   replacementMap.each { key, value -> content = content.replace(key, value) }
   writeFile file: outputPath, text: content
 }
 
 def replaceChart() {
-  replaceTemplate('Chart.yaml', "${env.currentDir}/charts/${params.chartName}/Chart.yaml", ['{{CHART_VERSION}}': "${env.chartVersion}"])
+  replaceTemplate('Chart.yaml', "${env.CURR_DIR}/charts/${params.chartName}/Chart.yaml", ['{{CHART_VERSION}}': "${env.CHART_VERSION}"])
 }
 
 // METHODS FOR HELM
 def helmUpgrade() {
   sh """
-    sudo helm repo update ${env.chartRepoName}
-    sudo helm upgrade --install ${params.appName} ${env.chartRepoName}/${params.chartName} --namespace ${params.namespace} --create-namespace --version ${env.chartVersion} --kubeconfig ${env.kubeConfigDir} --debug --atomic --timeout 2m0s
+    sudo helm repo update ${env.CHART_REPO_NAME}
+    sudo helm upgrade --install ${params.appName} ${env.CHART_REPO_NAME}/${params.chartName} --namespace ${params.namespace} --create-namespace --version ${env.CHART_VERSION} --kubeconfig ${env.KUBE_CONFIG_DIR} --timeout 2m0s
   """
+}
+
+// METHODS FOR GIT
+def gitCheckout(String tagName) {
+  try {
+    echo 'Checkout - Starting.'
+    cleanWs()
+    checkout([$class: 'GitSCM', branches: [[name: "${tagName}"]], extensions: [], userRemoteConfigs: [[credentialsId: "${env.GITHUB_CREDENTIAL_ID}", url: "${env.GIT_REPO_URL}"]]])
+    echo 'Checkout - Completed.'
+  } catch (err) {
+    echo 'Checkout - Failed.'
+    currentBuild.result = 'FAILURE'
+    error(err.message)
+  }
 }
 
 pipeline {
@@ -25,27 +39,25 @@ pipeline {
     string(name: 'namespace', defaultValue: params.namespace, description: 'Please fill namespace.')
     choice(name: 'chartName', choices: ['bcc', 'cp', 'csc', 'ioc', 'ucp'], description: 'Please select chart name.')
     string(name: 'chartVersion', defaultValue: params.chartVersion, description: 'Please fill version.')
-    choice(name: 'buildType', choices: ['alpha'], description: 'Please select build type.')
-    booleanParam(name: 'releaseTag', description: '')
+    choice(name: 'buildType', choices: ['alpha', 'ReleaseTag'], description: 'Please select build type.')
   }
 
   environment {
-    currentDir = sh(script: 'sudo pwd', returnStdout: true).trim()
-    helmTemplateDir = "${env.currentDir}/charts/${params.chartName}/helm-template"
-    kubeConfigDir = '/root/.kube/Config'
+    CURR_DIR = sh(script: 'sudo pwd', returnStdout: true).trim()
+    HELM_TEMPLATE_DIR = "${env.CURR_DIR}/charts/${params.chartName}/helm-template"
+    KUBE_CONFIG_DIR = '/root/.kube/Config'
 
-    gitCredentialId = 'GITHUB-jenkins'
-    gitBranch = 'main'
-    gitRepoUrl = 'https://github.com/pongsathorn-ph/png-iapi-chart.git'
+    GITHUB_CREDENTIAL_ID = 'GITHUB-jenkins'
+    GITHUB_CREDENTIAL = credentials("${GITHUB_CREDENTIAL_ID}")
+    GIT_BRANCH_NAME = 'main'
+    GIT_REPO_URL = 'https://github.com/pongsathorn-ph/png-iapi-chart.git'
 
-    chartRepoName = 'demo-repo'
-    chartRepoUrl = 'https://pongsathorn-ph.github.io/png-iapi-chart/'
-    currentBuild = String.format('%04d', currentBuild.number)
-    chartVersion = "${params.chartVersion}-${env.currentBuild}-${params.buildType}"
+    CHART_REPO_NAME = 'demo-repo'
+    CHART_REPO_URL = 'https://pongsathorn-ph.github.io/png-iapi-chart/'
+    CURR_BUILD = String.format('%04d', currentBuild.number)
+    CHART_VERSION = "${params.chartVersion}-${env.CURR_BUILD}-${params.buildType}"
 
-    imageRepoDev = 'pongsathorn/demo-ui-dev'
-    imageRepoPre = 'pongsathorn/demo-ui-pre'
-    imageRepoPro = 'pongsathorn/demo-ui-pro'
+    LAST_REVISION_TAG = ""
   }
 
   stages {
@@ -59,10 +71,12 @@ pipeline {
         stage('Initial') {
           steps {
             script {
-              if (params.releaseTag) {
-                withEnv(["chartVersion=${params.chartVersion}-${env.currentBuild}"]) {
-                  echo "Release tag: ${params.releaseTag}"
-                  echo "Chart version: ${env.chartVersion}"
+              currentBuild.displayName = currentBuild.displayName + "  :  ALPHA"
+            }
+            script {
+              if (params.buildType == 'ReleaseTag') {
+                withEnv(["chartVersion=${params.chartVersion}-${env.CURR_BUILD}"]) {
+                  echo "Chart version: ${env.CHART_VERSION}"
                 }
               }
             }
@@ -72,16 +86,7 @@ pipeline {
         stage('Checkout') {
           steps {
             script {
-              try {
-                echo 'Checkout - Starting.'
-                cleanWs()
-                checkout([$class: 'GitSCM', branches: [[name: "${env.gitBranch}"]], extensions: [], userRemoteConfigs: [[credentialsId: "${env.gitCredentialId}", url: "${env.gitRepoUrl}"]]])
-                echo 'Checkout - Completed.'
-              } catch (err) {
-                echo 'Checkout - Failed.'
-                currentBuild.result = 'FAILURE'
-                error('Checkout stage failed.')
-              }
+              gitCheckout("${env.GIT_BRANCH_NAME}")
             }
           }
         }
@@ -92,13 +97,15 @@ pipeline {
               try {
                 echo 'Replace - Starting.'
                 replaceChart()
-                sh "sudo ls -al ${env.currentDir}/charts/${params.chartName}"
-                sh "cat ${env.currentDir}/charts/${params.chartName}/Chart.yaml"
                 echo 'Replace - Completed.'
-          } catch (err) {
+                sh """
+                  sudo ls -al ${env.CURR_DIR}/charts/${params.chartName}
+                  cat ${env.CURR_DIR}/charts/${params.chartName}/Chart.yaml
+                """
+              } catch (err) {
                 echo 'Replace - Failed.'
                 currentBuild.result = 'FAILURE'
-                error('Package stage failed.')
+                error(err.message)
               }
             }
           }
@@ -110,25 +117,25 @@ pipeline {
               try {
                 echo 'Package - Starting.'
                 sh """
-              sudo mkdir -p ${env.currentDir}/assets/${params.chartName}
+                  sudo mkdir -p ${env.CURR_DIR}/assets/${params.chartName}
 
-              sudo helm dependency update ${env.currentDir}/charts/${params.chartName}/
+                  sudo helm dependency update ${env.CURR_DIR}/charts/${params.chartName}/
 
-              sudo helm package ${env.currentDir}/charts/${params.chartName} -d ${env.currentDir}/temp
-              sudo helm repo index --url assets/${params.chartName} --merge ${env.currentDir}/index.yaml ${env.currentDir}/temp
+                  sudo helm package ${env.CURR_DIR}/charts/${params.chartName} -d ${env.CURR_DIR}/temp
+                  sudo helm repo index --url assets/${params.chartName} --merge ${env.CURR_DIR}/index.yaml ${env.CURR_DIR}/temp
 
-              sudo mv ${env.currentDir}/temp/${params.chartName}-*.tgz ${env.currentDir}/assets/${params.chartName}
-              sudo mv ${env.currentDir}/temp/index.yaml ${env.currentDir}/
-              sudo rm -rf ${env.currentDir}/temp
+                  sudo mv ${env.CURR_DIR}/temp/${params.chartName}-*.tgz ${env.CURR_DIR}/assets/${params.chartName}
+                  sudo mv ${env.CURR_DIR}/temp/index.yaml ${env.CURR_DIR}/
+                  sudo rm -rf ${env.CURR_DIR}/temp
 
-              sudo ls -al ${env.currentDir}/assets/${params.chartName}
-              sudo cat ${env.currentDir}/index.yaml
-            """
+                  #sudo ls -al ${env.CURR_DIR}/assets/${params.chartName}
+                  #sudo cat ${env.CURR_DIR}/index.yaml
+                """
                 echo 'Package - Completed.'
-          } catch (err) {
+              } catch (err) {
                 echo 'Package - Failed.'
                 currentBuild.result = 'FAILURE'
-                error('Package stage failed.')
+                error(err.message)
               }
             }
           }
@@ -138,33 +145,35 @@ pipeline {
           steps {
             script {
               try {
+                echo 'GIT Commit - Starting.'
                 sh """
                   git config --global user.name 'Jenkins Pipeline'
                   git config --global user.email 'jenkins@localhost'
-                  git checkout -b ${env.gitBranch}
+                  git checkout -b ${env.GIT_BRANCH_NAME}
                   git add .
                   git commit -m 'Update from Jenkins-Pipeline'
+                  git push https://$GITHUB_CREDENTIAL_USR:$GITHUB_CREDENTIAL_PSW@github.com/pongsathorn-ph/png-iapi-chart.git ${env.GIT_BRANCH_NAME}
                 """
-                withCredentials([gitUsernamePassword(credentialsId: "${env.gitCredentialId}", gitToolName: 'Default')]) {
-                  sh "git push origin ${env.gitBranch}"
-                }
+                echo 'GIT Commit - Completed.'
               } catch (err) {
-                echo 'GIT - Failed.'
+                echo 'GIT Commit - Failed.'
                 currentBuild.result = 'FAILURE'
-                error('Git stage failed.')
+                error(err.message)
               }
             }
           }
         }
-
+        
         stage('Helm install') {
           steps {
             script {
               try {
+                echo 'Helm install - Starting.'
                 sleep 60
-                sh "sudo helm repo add ${env.chartRepoName} ${env.chartRepoUrl}"
+                sh "sudo helm repo add ${env.CHART_REPO_NAME} ${env.CHART_REPO_URL}"
                 helmUpgrade()
-          } catch (err) {
+                echo 'Helm install - Completed.'
+              } catch (err) {
                 retry(2) {
                   sleep 60
                   helmUpgrade()
@@ -173,13 +182,49 @@ pipeline {
             }
           }
         }
+
+        stage('Remove tag') {
+          steps {
+            script {
+              echo 'Remove tag - Starting.'
+              catchError(buildResult: 'SUCCESS',stageResult: 'SUCCESS') {
+                sh """
+                  git tag -d ${params.chartVersion}
+                  git push --delete https://$GITHUB_CREDENTIAL_USR:$GITHUB_CREDENTIAL_PSW@github.com/pongsathorn-ph/png-iapi-chart.git ${params.chartVersion}
+                """
+              }
+              echo 'Remove tag - Completed.'
+            }
+          }
+        }
+
+        stage('Push tag') {
+          steps {
+            script {
+              try {
+                echo 'Push tag - Starting.'
+                currentBuild.displayName = "${currentBuild.displayName} : TAG 🏷️"
+                sh """
+                  git tag ${params.chartVersion}
+                  git push https://$GITHUB_CREDENTIAL_USR:$GITHUB_CREDENTIAL_PSW@github.com/pongsathorn-ph/png-iapi-chart.git ${params.chartVersion}
+                """
+                echo 'Push tag - Completed.'
+              } catch (err) {
+                echo 'Push tag - Failed.'
+                currentBuild.result = 'FAILURE'
+                error(err.message)
+              }
+            }
+          }
+        }
+        
       }
     }
-
-    stage('Generate tag version') {
+    /*
+    stage('Confirm tag version') {
       when {
         expression {
-          params.releaseTag
+          env.buildType == 'ReleaseTag'
         }
       }
       steps {
@@ -189,39 +234,57 @@ pipeline {
         }
       }
     }
-
+    */
     stage('Tag') {
+      /*
       when {
         expression {
-          params.releaseTag && params.chartVersion == env.tagVersion
+          env.buildType == 'ReleaseTag' && params.chartVersion == env.tagVersion
         }
       }
+      */
       stages {
         stage('Prepare tag') {
           steps {
             script {
               currentBuild.displayName = "${currentBuild.displayName} : TAG 🏷️"
-              /*
-              try {
-                echo 'Checkout - Starting.'
-                cleanWs()
-                checkout([$class: 'GitSCM', branches: [[name: "${env.gitBranch}"]], extensions: [], userRemoteConfigs: [[credentialsId: "${env.gitCredentialId}", url: "${env.gitRepoUrl}"]]])
-                echo 'Checkout - Completed.'
-              } catch (err) {
-                echo 'Checkout - Failed.'
-                currentBuild.result = 'FAILURE'
-                error('Checkout stage failed.')
+            }
+            script {
+              def job = Jenkins.instance.getItemByFullName("${env.JOB_NAME}")
+
+              job.builds.find {
+                if(it.result == hudson.model.Result.SUCCESS) {
+                  def is_BuildDev = it.actions.find{it instanceof ParametersAction}?.parameters.find{it.name == "BuildDev"}?.value
+                  echo "is_BuildDev: ${is_BuildDev}"
+                  // echo "Build name: ${it.fullDisplayName}"
+                  // echo "Build number: ${it.getId()}"
+
+                  LAST_REVISION_TAG = it.actions.find{it instanceof hudson.plugins.git.util.BuildData}?.lastBuild
+                  if(LAST_REVISION_TAG != null) {
+                    env.LAST_REVISION_TAG = LAST_REVISION_TAG
+                    return true
+                  }
+                }
               }
-              */
+
+              echo "Last revision tag: ${env.LAST_REVISION_TAG}"
+
+              // checkout มาจาก tag
+              // gitCheckout("${env.GIT_BRANCH_NAME}")
             }
           }
         }
+
+        // /usr/share/jenkins/ref$ cat /var/jenkins_home/workspace/PNG-IAPI/PNG-IAPI_WEB-BCC-UI/helm-chart/index.yaml
+        // validate image ไม่มี alpha เหลือแล้ว
+        // ลบ alpha ออกจาก index
+        // commit && push
         
         /*
         stage('Push tag to gitlab') {
           steps {
             sh "git tag ${env.tagVersion}"
-            withCredentials([gitUsernamePassword(credentialsId: "${env.gitCredentialId}", gitToolName: 'Default')]) {
+            withCredentials([gitUsernamePassword(credentialsId: "${env.GITHUB_CREDENTIAL_ID}", gitToolName: 'Default')]) {
               sh "git push origin ${env.tagVersion}"
             }
           }

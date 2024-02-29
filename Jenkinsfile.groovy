@@ -1,4 +1,3 @@
-// METHODS FOR REPLACEMENT
 def replaceTemplate(String fileName, String outputPath, Map replacementMap) {
   def content = readFile("${env.HELM_TEMPLATE_DIR}/${fileName}")
   replacementMap.each { key, value -> content = content.replace(key, value) }
@@ -66,7 +65,6 @@ def gitPushTagProcess(String tagName) {
   """
 }
 
-// METHODS FOR HELM
 def helmUpgrade() {
   sh """
     sudo helm repo update ${env.CHART_REPO_NAME}

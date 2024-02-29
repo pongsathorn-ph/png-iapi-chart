@@ -15,10 +15,8 @@ def replaceChart() {
 
 def packageProcess() {
   sh """
-    sudo mkdir -p ${env.WORKSPACE}/assets/${params.chartName}
-
     sudo helm dependency update ${env.WORKSPACE}/charts/${params.chartName}/
-
+    sudo mkdir -p ${env.WORKSPACE}/assets/${params.chartName}
     sudo helm package ${env.WORKSPACE}/charts/${params.chartName} -d ${env.WORKSPACE}/temp
     sudo helm repo index --url assets/${params.chartName} --merge ${env.WORKSPACE}/index.yaml ${env.WORKSPACE}/temp
 
@@ -185,12 +183,17 @@ pipeline {
             script {
               try {
                 echo 'Package - Starting.'
+                sleep 60
                 packageProcess()
                 echo 'Package - Completed.'
               } catch (err) {
                 echo 'Package - Failed.'
-                currentBuild.result = 'FAILURE'
-                error(err.message)
+                retry(2) {
+                  sleep 60
+                  packageProcess()
+                }
+                // currentBuild.result = 'FAILURE'
+                // error(err.message)
               }
             }
           }

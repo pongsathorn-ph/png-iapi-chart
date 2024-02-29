@@ -7,4 +7,4 @@ appVersion: "1.0.0"
 dependencies:
   - name: ioc-ui-chart
     repository: "https://pongsathorn-ph.github.io/ioc-ui/helm-chart/"
-    version: "2024.02.00-0001-alpha"
+    version: "{{DEPENDENCY_UI_VERSION}}"

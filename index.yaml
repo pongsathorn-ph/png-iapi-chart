@@ -74,4 +74,19 @@ entries:
     urls:
     - assets/ioc/ioc-2024.02.00-0006-ALPHA.tgz
     version: 2024.02.00-0006-ALPHA
-generated: "2024-02-29T08:16:19.106773867Z"
+  ucp:
+  - apiVersion: v2
+    appVersion: 1.0.0
+    created: "2024-02-29T08:20:19.466682927Z"
+    dependencies:
+    - name: ucp-ui-chart
+      repository: https://pongsathorn-ph.github.io/ucp-ui/helm-chart/
+      version: 2024.02.00-0002-ALPHA
+    description: A Helm chart for Kubernetes
+    digest: 7ade31c541a69e77627a8741240acd490b6c556e35b6070932ef0ae61fd91b1f
+    name: ucp
+    type: application
+    urls:
+    - assets/ucp/ucp-2024.02.00-0007-ALPHA.tgz
+    version: 2024.02.00-0007-ALPHA
+generated: "2024-02-29T08:20:19.466432566Z"

@@ -8,9 +8,62 @@ def replaceTemplate(String fileName, String outputPath, Map replacementMap) {
 def replaceChart() {
   def replacementMap = [
     "{{CHART_VERSION}}": "${env.CHART_VERSION}", 
-    "{{DEPENDENCY_VERSION}}": "${env.DEPENDENCY_VERSION}"
+    "{{DEPENDENCY_UI_VERSION}}": "${env.DEPENDENCY_UI_VERSION}"
+    "{{DEPENDENCY_API_VERSION}}": "${env.DEPENDENCY_API_VERSION}"
   ]
-  replaceTemplate('Chart.yaml', "${env.CURR_DIR}/charts/${params.chartName}/Chart.yaml", replacementMap)
+  replaceTemplate('Chart.yaml', "${env.WORKSPACE}/charts/${params.chartName}/Chart.yaml", replacementMap)
+}
+
+def packageProcess() {
+  sh """
+    sudo mkdir -p ${env.WORKSPACE}/assets/${params.chartName}
+
+    sudo helm dependency update ${env.WORKSPACE}/charts/${params.chartName}/
+
+    sudo helm package ${env.WORKSPACE}/charts/${params.chartName} -d ${env.WORKSPACE}/temp
+    sudo helm repo index --url assets/${params.chartName} --merge ${env.WORKSPACE}/index.yaml ${env.WORKSPACE}/temp
+
+    sudo mv ${env.WORKSPACE}/temp/${params.chartName}-*.tgz ${env.WORKSPACE}/assets/${params.chartName}
+    sudo mv ${env.WORKSPACE}/temp/index.yaml ${env.WORKSPACE}/
+    sudo rm -rf ${env.WORKSPACE}/temp
+
+    #sudo ls -al ${env.WORKSPACE}/assets/${params.chartName}
+    #sudo cat ${env.WORKSPACE}/index.yaml
+  """
+}
+
+def gitCommitPushProcess() {
+  withCredentials([gitUsernamePassword(credentialsId: "${env.GITHUB_CREDENTIAL_ID}", gitToolName: 'Default')]) {
+    sh """
+      git config --global user.name 'Jenkins Pipeline'
+      git config --global user.email 'jenkins@localhost'
+      git checkout -b ${env.GIT_BRANCH_NAME}
+      git add .
+      git commit -m 'Update from Jenkins-Pipeline'
+      git push origin ${env.GIT_BRANCH_NAME}
+    """
+  }
+}
+
+def gitCheckoutProcess(String tagName) {
+  cleanWs()
+  checkout([$class: 'GitSCM', branches: [[name: tagName]], extensions: [], userRemoteConfigs: [[credentialsId: env.GITHUB_CREDENTIAL_ID, url: "https://${env.GIT_REPO}"]]])
+}
+
+def gitRemoveTagProcess(String tagName) {
+  catchError(buildResult: 'SUCCESS', stageResult: 'SUCCESS') {
+    sh """
+      git tag -d ${tagName}
+      git push --delete https://$GITHUB_CREDENTIAL_USR:$GITHUB_CREDENTIAL_PSW@${env.GIT_REPO} ${tagName}
+    """
+  }
+}
+
+def gitPushTagProcess(String tagName) {
+  sh """
+    git tag ${tagName}
+    git push https://$GITHUB_CREDENTIAL_USR:$GITHUB_CREDENTIAL_PSW@${env.GIT_REPO} ${tagName}
+  """
 }
 
 // METHODS FOR HELM
@@ -21,17 +74,14 @@ def helmUpgrade() {
   """
 }
 
-// METHODS FOR GIT
-def gitCheckout(String tagName) {
-  try {
-    echo 'Checkout - Starting.'
-    cleanWs()
-    checkout([$class: 'GitSCM', branches: [[name: "${tagName}"]], extensions: [], userRemoteConfigs: [[credentialsId: "${env.GITHUB_CREDENTIAL_ID}", url: "${env.GIT_REPO_URL}"]]])
-    echo 'Checkout - Completed.'
-  } catch (err) {
-    echo 'Checkout - Failed.'
-    currentBuild.result = 'FAILURE'
-    error(err.message)
+def validateAlpha(String jobName) {
+  def yaml = readYaml file: "../${jobName}/helm-chart/Chart.yaml"
+  def version = yaml.version
+  
+  if (version.toString().contains('alpha')) {
+    catchError(buildResult: 'ABORTED', stageResult: 'ABORTED') {
+      error('ABORTED Reason - Found alpha.')
+    }
   }
 }
 
@@ -47,87 +97,85 @@ pipeline {
   }
 
   environment {
-    CURR_DIR = sh(script: 'sudo pwd', returnStdout: true).trim()
-    HELM_TEMPLATE_DIR = "${env.CURR_DIR}/charts/${params.chartName}/helm-template"
+    BUILD_NUMBER = String.format('%04d', currentBuild.number)
+    HELM_TEMPLATE_DIR = "${env.WORKSPACE}/charts/${params.chartName}/helm-template"
     KUBE_CONFIG_DIR = '/root/.kube/Config'
 
     GITHUB_CREDENTIAL_ID = 'GITHUB-jenkins'
     GITHUB_CREDENTIAL = credentials("${GITHUB_CREDENTIAL_ID}")
+
     GIT_BRANCH_NAME = 'main'
-    GIT_REPO_URL = 'https://github.com/pongsathorn-ph/png-iapi-chart.git'
+    GIT_REPO = 'github.com/pongsathorn-ph/png-iapi-chart.git'
 
     CHART_REPO_NAME = 'demo-repo'
     CHART_REPO_URL = 'https://pongsathorn-ph.github.io/png-iapi-chart/'
-    CURR_BUILD = String.format('%04d', currentBuild.number)
-    CHART_VERSION = "${params.chartVersion}-${env.CURR_BUILD}-${params.buildType}"
-    DEPENDENCY_VERSION = "2024.02.00-0001-alpha"
+    CHART_VERSION = "${params.chartVersion}-${env.BUILD_NUMBER}-${params.buildType}"
 
-    LAST_REVISION_TAG = ""
+    DEPENDENCY_UI_VERSION = "2024.02.00-0001-alpha"
+    DEPENDENCY_API_VERSION = "2024.02.00-0001-alpha"
+
+    TAG_NAME_ALPHA = "${params.chartVersion}-ALPHA"
+    TAG_NAME_PRO = "${params.chartVersion}"
   }
 
   stages {
-    stage('Initial parameter') {
-      when {
-        expression {
-          env.buildType == 'initial'
-        }
-      }
-      steps {
-        script {
-          currentBuild.displayName = "INITIAL 📌"
-        }
-        echo 'Completed.'
-      }
-    }
-
     stage('Initial') {
       when {
         expression {
-          env.buildType != 'initial'
+          params.buildType != 'initial'
         }
       }
       steps {
         script {
-          currentBuild.displayName = "${params.chartVersion}-${env.CURR_BUILD}"
-          
-          if (params.buildType == 'ReleaseTag') {
-            withEnv(["chartVersion=${params.chartVersion}-${env.CURR_BUILD}"]) {
-              echo "Chart version: ${env.CHART_VERSION}"
-            }
-          }
+          currentBuild.displayName = "${params.chartVersion}-${env.BUILD_NUMBER}"
         }
       }
     }
 
-    stage('Build and deploy Alpha') {
+    stage('Build Alpha') {
       when {
         expression {
           params.buildType == 'alpha'
         }
       }
       stages {
-        stage('Checkout') {
+        stage('Preparing') {
           steps {
             script {
               currentBuild.displayName = "${currentBuild.displayName} : ALPHA"
-              gitCheckout("${env.GIT_BRANCH_NAME}")
             }
           }
         }
 
-        stage('Replace') {
+        stage('Checkout') {
           steps {
             script {
               try {
-                echo 'Replace - Starting.'
-                replaceChart()
-                echo 'Replace - Completed.'
-                sh """
-                  sudo ls -al ${env.CURR_DIR}/charts/${params.chartName}
-                  cat ${env.CURR_DIR}/charts/${params.chartName}/Chart.yaml
-                """
+                echo 'Checkout - Starting.'
+                gitCheckoutProcess("${env.GIT_BRANCH_NAME}") // FIXME จะต้อง checkout จาก PRE_ALPHA
+                echo 'Checkout - Completed.'
               } catch (err) {
-                echo 'Replace - Failed.'
+                echo 'Checkout - Failed.'
+                currentBuild.result = 'FAILURE'
+                error(err.message)
+              }
+            }
+          }
+        }
+
+        stage('Replacement') {
+          steps {
+            script {
+              try {
+                echo 'Replacement - Starting.'
+                replaceChart()
+                sh """
+                  sudo ls -al ${env.WORKSPACE}/charts/${params.chartName}
+                  cat ${env.WORKSPACE}/charts/${params.chartName}/Chart.yaml
+                """
+                echo 'Replacement - Completed.'
+              } catch (err) {
+                echo 'Replacement - Failed.'
                 currentBuild.result = 'FAILURE'
                 error(err.message)
               }
@@ -140,21 +188,7 @@ pipeline {
             script {
               try {
                 echo 'Package - Starting.'
-                sh """
-                  sudo mkdir -p ${env.CURR_DIR}/assets/${params.chartName}
-
-                  sudo helm dependency update ${env.CURR_DIR}/charts/${params.chartName}/
-
-                  sudo helm package ${env.CURR_DIR}/charts/${params.chartName} -d ${env.CURR_DIR}/temp
-                  sudo helm repo index --url assets/${params.chartName} --merge ${env.CURR_DIR}/index.yaml ${env.CURR_DIR}/temp
-
-                  sudo mv ${env.CURR_DIR}/temp/${params.chartName}-*.tgz ${env.CURR_DIR}/assets/${params.chartName}
-                  sudo mv ${env.CURR_DIR}/temp/index.yaml ${env.CURR_DIR}/
-                  sudo rm -rf ${env.CURR_DIR}/temp
-
-                  #sudo ls -al ${env.CURR_DIR}/assets/${params.chartName}
-                  #sudo cat ${env.CURR_DIR}/index.yaml
-                """
+                packageProcess()
                 echo 'Package - Completed.'
               } catch (err) {
                 echo 'Package - Failed.'
@@ -165,19 +199,12 @@ pipeline {
           }
         }
 
-        stage('Git commit and push') {
+        stage('Commit and Push') {
           steps {
             script {
               try {
                 echo 'GIT Commit - Starting.'
-                sh """
-                  git config --global user.name 'Jenkins Pipeline'
-                  git config --global user.email 'jenkins@localhost'
-                  git checkout -b ${env.GIT_BRANCH_NAME}
-                  git add .
-                  git commit -m 'Update from Jenkins-Pipeline'
-                  git push https://$GITHUB_CREDENTIAL_USR:$GITHUB_CREDENTIAL_PSW@github.com/pongsathorn-ph/png-iapi-chart.git ${env.GIT_BRANCH_NAME}
-                """
+                gitCommitPushProcess()
                 echo 'GIT Commit - Completed.'
               } catch (err) {
                 echo 'GIT Commit - Failed.'
@@ -211,12 +238,7 @@ pipeline {
           steps {
             script {
               echo 'Remove tag - Starting.'
-              catchError(buildResult: 'SUCCESS',stageResult: 'SUCCESS') {
-                sh """
-                  git tag -d ${params.chartVersion}
-                  git push --delete https://$GITHUB_CREDENTIAL_USR:$GITHUB_CREDENTIAL_PSW@github.com/pongsathorn-ph/png-iapi-chart.git ${params.chartVersion}
-                """
-              }
+              gitRemoveTagProcess("${env.TAG_NAME_ALPHA}")
               echo 'Remove tag - Completed.'
             }
           }
@@ -227,10 +249,7 @@ pipeline {
             script {
               try {
                 echo 'Push tag - Starting.'
-                sh """
-                  git tag ${params.chartVersion}
-                  git push https://$GITHUB_CREDENTIAL_USR:$GITHUB_CREDENTIAL_PSW@github.com/pongsathorn-ph/png-iapi-chart.git ${params.chartVersion}
-                """
+                gitPushTagProcess("${env.TAG_NAME_ALPHA}")
                 echo 'Push tag - Completed.'
               } catch (err) {
                 echo 'Push tag - Failed.'
@@ -240,78 +259,69 @@ pipeline {
             }
           }
         }
-        
+
       }
     }
     
-    stage('Confirm tag version') {
-      when {
-        expression {
-          env.buildType == 'ReleaseTag'
-        }
-      }
-      steps {
-        echo 'Ask for confirm.'
-        script {
-          env.tagVersion = input message: 'Confirm for production tag release V.' + params.chartVersion, parameters: [string(defaultValue: '', description: '', name: 'Type version for confirm.', trim: false)]
-        }
-      }
-    }
+    // stage('Confirm tag version') {
+    //   when {
+    //     expression {
+    //       params.buildType == 'ReleaseTag'
+    //     }
+    //   }
+    //   steps {
+    //     echo 'Ask for confirm.'
+    //     script {
+    //       env.tagVersion = input message: 'Confirm for production tag release V.' + params.chartVersion, parameters: [string(defaultValue: '', description: '', name: 'Type version for confirm.', trim: false)]
+    //     }
+    //   }
+    // }
     
-    stage('Tag') {
-      when {
-        expression {
-          env.buildType == 'ReleaseTag' && params.chartVersion == env.tagVersion
-        }
-      }
-      stages {
-        stage('Prepare tag') {
-          steps {
-            script {
-              currentBuild.displayName = "${currentBuild.displayName} : TAG 🏷️"
-            }
-            script {
-              def job = Jenkins.instance.getItemByFullName("${env.JOB_NAME}")
+    // stage('Tag') {
+    //   when {
+    //     expression {
+    //       params.buildType == 'ReleaseTag'// && params.chartVersion == env.tagVersion
+    //     }
+    //   }
+    //   stages {
+    //     stage('Prepare tag') {
+    //       steps {
+    //         script {
+    //           currentBuild.displayName = "${currentBuild.displayName} : TAG 🏷️"
+    //         }
+    //         // validate image ไม่มี alpha เหลือแล้ว (UI และ API)
+    //         script {
+    //           validateAlpha("PNG-IAPI_WEB-BCC-UI")
+    //         }
+    //         script {
+    //           def job = Jenkins.instance.getItemByFullName("${env.JOB_NAME}")
 
-              job.builds.find {
-                if(it.result == hudson.model.Result.SUCCESS) {
-                  // def is_BuildDev = it.actions.find{it instanceof ParametersAction}?.parameters.find{it.name == "BuildDev"}?.value
-                  // echo "is_BuildDev: ${is_BuildDev}"
-                  // echo "Build name: ${it.fullDisplayName}"
-                  // echo "Build number: ${it.getId()}"
+    //           job.builds.find {
+    //             if(it.result == hudson.model.Result.SUCCESS) {
+    //               // def is_BuildDev = it.actions.find{it instanceof ParametersAction}?.parameters.find{it.name == "BuildDev"}?.value
+    //               // echo "is_BuildDev: ${is_BuildDev}"
+    //               echo "Build name: ${it.name}"
+    //               echo "Build number: ${it.getId()}"
 
-                  LAST_REVISION_TAG = it.actions.find{it instanceof hudson.plugins.git.util.BuildData}?.lastBuild
-                  if(LAST_REVISION_TAG != null) {
-                    env.LAST_REVISION_TAG = LAST_REVISION_TAG
-                    return true
-                  }
-                }
-              }
+    //               TAG_LAST_REVISION = it.actions.find{it instanceof hudson.plugins.git.util.BuildData}?.lastBuild
+    //               if(TAG_LAST_REVISION != null) {
+    //                 env.TAG_LAST_REVISION = TAG_LAST_REVISION
+    //                 return true
+    //               }
+    //             }
+    //           }
 
-              echo "Last revision tag: ${env.LAST_REVISION_TAG}"
+    //           echo "Last revision tag: ${env.TAG_LAST_REVISION}"
 
-              // checkout มาจาก tag
-              // gitCheckout("${env.GIT_BRANCH_NAME}")
-            }
-          }
-        }
-
-        // /usr/share/jenkins/ref$ cat /var/jenkins_home/workspace/PNG-IAPI/PNG-IAPI_WEB-BCC-UI/helm-chart/index.yaml
-        // validate image ไม่มี alpha เหลือแล้ว
-        // ลบ alpha ออกจาก index
-        // commit && push
+    //           checkout มาจาก tag
+    //           gitCheckout("${env.GIT_BRANCH_NAME}")
+    //         }
+    //       }
+    //     }
         
-        /*
-        stage('Push tag to gitlab') {
-          steps {
-            sh "git tag ${env.tagVersion}"
-            withCredentials([gitUsernamePassword(credentialsId: "${env.GITHUB_CREDENTIAL_ID}", gitToolName: 'Default')]) {
-              sh "git push origin ${env.tagVersion}"
-            }
-          }
-        }
-        */
-      }
-    }
+    //     // ลบ alpha ออกจาก index
+    //     // commit && push
+    //   }
+    // }
   }
 }

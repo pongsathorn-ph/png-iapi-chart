@@ -59,4 +59,19 @@ entries:
     urls:
     - assets/csc/csc-2024.02.00-0005-ALPHA.tgz
     version: 2024.02.00-0005-ALPHA
-generated: "2024-02-29T08:13:55.334370204Z"
+  ioc:
+  - apiVersion: v2
+    appVersion: 1.0.0
+    created: "2024-02-29T08:16:19.107083833Z"
+    dependencies:
+    - name: ioc-ui-chart
+      repository: https://pongsathorn-ph.github.io/ioc-ui/helm-chart/
+      version: 2024.02.00-0002-ALPHA
+    description: A Helm chart for Kubernetes
+    digest: 88bbb32af0d3194735af0959ef6e4208f7fa19e67be8bb1023941662aead7cca
+    name: ioc
+    type: application
+    urls:
+    - assets/ioc/ioc-2024.02.00-0006-ALPHA.tgz
+    version: 2024.02.00-0006-ALPHA
+generated: "2024-02-29T08:16:19.106773867Z"

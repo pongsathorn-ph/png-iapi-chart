@@ -1,0 +1,6 @@
+dependencies:
+- name: ioc-ui-chart
+  repository: https://pongsathorn-ph.github.io/ioc-ui/helm-chart/
+  version: 2024.02.00-0002-ALPHA
+digest: sha256:cc48268b6d461c15e2175867a96b24efcc684ca654c96ef159390d1aefa2f914
+generated: "2024-02-29T08:16:18.541931178Z"

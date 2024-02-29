@@ -18,6 +18,20 @@ entries:
   cp:
   - apiVersion: v2
     appVersion: 1.0.0
+    created: "2024-02-29T08:07:44.38965064Z"
+    dependencies:
+    - name: cp-ui-chart
+      repository: https://pongsathorn-ph.github.io/cp-ui/helm-chart/
+      version: 2024.02.00-0003-ALPHA
+    description: A Helm chart for Kubernetes
+    digest: 0ac72dbea96e0b42f03fef94d240ce25b3789e04a8b02d9fcdd57ffc6a659af3
+    name: cp
+    type: application
+    urls:
+    - assets/cp/cp-2024.02.00-0004-ALPHA.tgz
+    version: 2024.02.00-0004-ALPHA
+  - apiVersion: v2
+    appVersion: 1.0.0
     created: "2024-02-29T08:04:13.256979738Z"
     dependencies:
     - name: cp-ui-chart
@@ -30,4 +44,4 @@ entries:
     urls:
     - assets/cp/cp-2024.02.00-0003-ALPHA.tgz
     version: 2024.02.00-0003-ALPHA
-generated: "2024-02-29T08:04:13.256621709Z"
+generated: "2024-02-29T08:07:44.389064212Z"

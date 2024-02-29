@@ -15,4 +15,19 @@ entries:
     urls:
     - assets/bcc/bcc-2024.02.00-0002-ALPHA.tgz
     version: 2024.02.00-0002-ALPHA
-generated: "2024-02-29T04:00:10.606377566Z"
+  cp:
+  - apiVersion: v2
+    appVersion: 1.0.0
+    created: "2024-02-29T04:04:05.371113656Z"
+    dependencies:
+    - name: cp-ui-chart
+      repository: https://pongsathorn-ph.github.io/cp-ui/helm-chart/
+      version: 2024.02.00-0002-ALPHA
+    description: A Helm chart for Kubernetes
+    digest: 8a80987349aa7b8203c624c0342455f18ebcd95ce649e9b0799a45cf5e9763e5
+    name: cp
+    type: application
+    urls:
+    - assets/cp/cp-2024.02.00-0003-ALPHA.tgz
+    version: 2024.02.00-0003-ALPHA
+generated: "2024-02-29T04:04:05.370850961Z"

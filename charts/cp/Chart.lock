@@ -1,0 +1,6 @@
+dependencies:
+- name: cp-ui-chart
+  repository: https://pongsathorn-ph.github.io/cp-ui/helm-chart/
+  version: 2024.02.00-0002-ALPHA
+digest: sha256:724e2965ce5efde21bf18f62e46db4b1c58bf3f12bb5c0f2eb2ef19f9181c5fd
+generated: "2024-02-29T04:04:04.908374059Z"

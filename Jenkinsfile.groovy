@@ -8,7 +8,7 @@ def replaceTemplate(String fileName, String outputPath, Map replacementMap) {
 def replaceChart() {
   def replacementMap = [
     "{{CHART_VERSION}}": "${env.CHART_VERSION}", 
-    "{{DEPENDENCY_UI_VERSION}}": "${env.DEPENDENCY_UI_VERSION}"
+    "{{DEPENDENCY_UI_VERSION}}": "${env.DEPENDENCY_UI_VERSION}",
     "{{DEPENDENCY_API_VERSION}}": "${env.DEPENDENCY_API_VERSION}"
   ]
   replaceTemplate('Chart.yaml', "${env.WORKSPACE}/charts/${params.chartName}/Chart.yaml", replacementMap)
@@ -93,7 +93,7 @@ pipeline {
     string(name: 'namespace', defaultValue: params.namespace, description: 'Please fill namespace.')
     choice(name: 'chartName', choices: ['bcc', 'cp', 'csc', 'ioc', 'ucp'], description: 'Please select chart name.')
     string(name: 'chartVersion', defaultValue: params.chartVersion, description: 'Please fill version.')
-    choice(name: 'buildType', choices: ['alpha', 'ReleaseTag'], description: 'Please select build type.')
+    choice(name: 'buildType', choices: ['ALPHA', 'RELEASE TAG'], description: 'Please select build type.')
   }
 
   environment {
@@ -111,8 +111,8 @@ pipeline {
     CHART_REPO_URL = 'https://pongsathorn-ph.github.io/png-iapi-chart/'
     CHART_VERSION = "${params.chartVersion}-${env.BUILD_NUMBER}-${params.buildType}"
 
-    DEPENDENCY_UI_VERSION = "2024.02.00-0001-alpha"
-    DEPENDENCY_API_VERSION = "2024.02.00-0001-alpha"
+    DEPENDENCY_UI_VERSION = "2024.02.00-0002-ALPHA"
+    DEPENDENCY_API_VERSION = "2024.02.00-0002-ALPHA"
 
     TAG_NAME_ALPHA = "${params.chartVersion}-ALPHA"
     TAG_NAME_PRO = "${params.chartVersion}"
@@ -135,7 +135,7 @@ pipeline {
     stage('Build Alpha') {
       when {
         expression {
-          params.buildType == 'alpha'
+          params.buildType == 'ALPHA'
         }
       }
       stages {
@@ -152,7 +152,7 @@ pipeline {
             script {
               try {
                 echo 'Checkout - Starting.'
-                gitCheckoutProcess("${env.GIT_BRANCH_NAME}") // FIXME จะต้อง checkout จาก PRE_ALPHA
+                gitCheckoutProcess("${env.GIT_BRANCH_NAME}")
                 echo 'Checkout - Completed.'
               } catch (err) {
                 echo 'Checkout - Failed.'
@@ -266,7 +266,7 @@ pipeline {
     // stage('Confirm tag version') {
     //   when {
     //     expression {
-    //       params.buildType == 'ReleaseTag'
+    //       params.buildType == 'RELEASE TAG'
     //     }
     //   }
     //   steps {

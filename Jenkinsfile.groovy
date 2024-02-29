@@ -7,8 +7,8 @@ def replaceTemplate(String fileName, String outputPath, Map replacementMap) {
 def replaceChart() {
   def replacementMap = [
     "{{CHART_VERSION}}": "${env.CHART_VERSION}", 
-    "{{DEPENDENCY_UI_VERSION}}": "${env.DEPENDENCY_UI_VERSION}",
-    "{{DEPENDENCY_API_VERSION}}": "${env.DEPENDENCY_API_VERSION}"
+    "{{UI_DEPENDENCY_VERSION}}": "${params.uiDependencyVersion}",
+    "{{API_DEPENDENCY_VERSION}}": "${params.apiDependencyVersion}"
   ]
   replaceTemplate('Chart.yaml', "${env.WORKSPACE}/charts/${params.chartName}/Chart.yaml", replacementMap)
 }
@@ -92,6 +92,8 @@ pipeline {
     choice(name: 'chartName', choices: ['bcc', 'cp', 'csc', 'ioc', 'ucp'], description: 'Please select chart name.')
     string(name: 'chartVersion', defaultValue: params.chartVersion, description: 'Please fill version.')
     choice(name: 'buildType', choices: ['ALPHA', 'RELEASE TAG'], description: 'Please select build type.')
+    string(name: 'uiDependencyVersion', defaultValue: params.uiDependencyVersion, description: 'Please fill version.')
+    string(name: 'apiDependencyVersion', defaultValue: params.apiDependencyVersion, description: 'Please fill version.')
   }
 
   environment {
@@ -108,9 +110,6 @@ pipeline {
     CHART_REPO_NAME = 'demo-repo'
     CHART_REPO_URL = 'https://pongsathorn-ph.github.io/png-iapi-chart/'
     CHART_VERSION = "${params.chartVersion}-${env.BUILD_NUMBER}-${params.buildType}"
-
-    DEPENDENCY_UI_VERSION = "2024.02.00-0002-ALPHA"
-    DEPENDENCY_API_VERSION = "2024.02.00-0002-ALPHA"
 
     TAG_NAME_ALPHA = "${params.chartVersion}-ALPHA"
     TAG_NAME_PRO = "${params.chartVersion}"

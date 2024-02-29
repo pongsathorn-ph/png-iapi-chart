@@ -7,4 +7,4 @@ appVersion: "1.0.0"
 dependencies:
   - name: ucp-ui-chart
     repository: "https://pongsathorn-ph.github.io/ucp-ui/helm-chart/"
-    version: "{{DEPENDENCY_UI_VERSION}}"
+    version: "{{UI_DEPENDENCY_VERSION}}"

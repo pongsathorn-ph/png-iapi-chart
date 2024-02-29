@@ -1,0 +1,6 @@
+dependencies:
+- name: csc-ui-chart
+  repository: https://pongsathorn-ph.github.io/csc-ui/helm-chart/
+  version: 2024.02.00-0002-ALPHA
+digest: sha256:2166f439161c4a23ff6cbcefabe1a78fd2a1be270c905415226cb78d2474aff4
+generated: "2024-02-29T08:13:54.81227604Z"

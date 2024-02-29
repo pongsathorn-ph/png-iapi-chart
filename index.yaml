@@ -44,4 +44,19 @@ entries:
     urls:
     - assets/cp/cp-2024.02.00-0003-ALPHA.tgz
     version: 2024.02.00-0003-ALPHA
-generated: "2024-02-29T08:07:44.389064212Z"
+  csc:
+  - apiVersion: v2
+    appVersion: 1.0.0
+    created: "2024-02-29T08:13:55.334646691Z"
+    dependencies:
+    - name: csc-ui-chart
+      repository: https://pongsathorn-ph.github.io/csc-ui/helm-chart/
+      version: 2024.02.00-0002-ALPHA
+    description: A Helm chart for Kubernetes
+    digest: 9b3a1360d06a4f2756c8b761b22f66e2831c8facb342c2ca302be32dda19c1b2
+    name: csc
+    type: application
+    urls:
+    - assets/csc/csc-2024.02.00-0005-ALPHA.tgz
+    version: 2024.02.00-0005-ALPHA
+generated: "2024-02-29T08:13:55.334370204Z"

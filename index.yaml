@@ -1,0 +1,18 @@
+apiVersion: v1
+entries:
+  bcc:
+  - apiVersion: v2
+    appVersion: 1.0.0
+    created: "2024-02-29T04:00:10.606680964Z"
+    dependencies:
+    - name: bcc-ui-chart
+      repository: https://pongsathorn-ph.github.io/bcc-ui/helm-chart/
+      version: 2024.02.00-0002-ALPHA
+    description: A Helm chart for Kubernetes
+    digest: 2df5bfde4e3ade606f6283c523b9dff4f211661acc2b4ac138f8c25f47b71c9e
+    name: bcc
+    type: application
+    urls:
+    - assets/bcc/bcc-2024.02.00-0002-ALPHA.tgz
+    version: 2024.02.00-0002-ALPHA
+generated: "2024-02-29T04:00:10.606377566Z"

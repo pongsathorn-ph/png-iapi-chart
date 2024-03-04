@@ -1,6 +1,0 @@
-dependencies:
-- name: ucp-ui-chart
-  repository: https://pongsathorn-ph.github.io/ucp-ui/helm-chart/
-  version: 2024.02.00-0002-ALPHA
-digest: sha256:786e80d42de9878bd4eb32a26f68ab2900cbcba625858cf520844ee9e20f7e59
-generated: "2024-02-29T08:20:18.858217066Z"

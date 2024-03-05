@@ -7,4 +7,7 @@ appVersion: "1.0.0"
 dependencies:
   - name: bcc-ui-chart
     repository: "https://pongsathorn-ph.github.io/bcc-ui/helm-chart/"
-    version: "{{UI_DEPENDENCY_VERSION}}"
+    version: "2024.03.00-0004-ALPHA"
+  - name: bcc-api-chart
+    repository: "https://pongsathorn-ph.github.io/bcc-ui/helm-chart/"
+    version: "{{API_DEPENDENCY_VERSION}}"

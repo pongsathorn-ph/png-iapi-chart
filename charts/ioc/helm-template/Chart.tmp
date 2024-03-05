@@ -1,0 +1,10 @@
+apiVersion: v2
+name: ioc
+description: A Helm chart for Kubernetes
+type: application
+version: "{{CHART_VERSION}}"
+appVersion: "1.0.0"
+dependencies:
+  - name: ioc-ui-chart
+    repository: "https://pongsathorn-ph.github.io/ioc-ui/helm-chart/"
+    version: "{{UI_DEPENDENCY_VERSION}}"

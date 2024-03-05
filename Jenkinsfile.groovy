@@ -64,7 +64,7 @@ def gitPushTagProcess(String tagName) {
 def helmUpgrade() {
   sh """
     sudo helm repo update ${env.CHART_REPO_NAME}
-    sudo helm upgrade --install ${params.appName} ${env.CHART_REPO_NAME}/${params.chartName} --namespace ${params.namespace} --create-namespace --version ${env.CHART_VERSION} --kubeconfig ${env.KUBE_CONFIG_DIR} --timeout 2m0s
+    sudo helm upgrade --install ${params.appName} ${env.CHART_REPO_NAME}/${params.chartName} --namespace ${params.namespace} --create-namespace --version ${env.CHART_VERSION} --kubeconfig ${env.KUBE_CONFIG_DIR} --timeout 2m0s --debug
   """
 }
 

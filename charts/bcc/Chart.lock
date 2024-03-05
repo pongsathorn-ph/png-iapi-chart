@@ -1,6 +1,0 @@
-dependencies:
-- name: bcc-ui-chart
-  repository: https://pongsathorn-ph.github.io/bcc-ui/helm-chart/
-  version: 2024.03.00-0002-ALPHA
-digest: sha256:bdc5f8c6ef98c4adea4634d9723f67a7d9d875e105cb32c5cc4906c6bb229d2e
-generated: "2024-03-05T01:23:06.666337026Z"

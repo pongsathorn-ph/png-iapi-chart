@@ -275,52 +275,167 @@ pipeline {
     //     }
     //   }
     // }
-    
-    // stage('Tag') {
-    //   when {
-    //     expression {
-    //       params.buildType == 'ReleaseTag'// && params.chartVersion == env.tagVersion
-    //     }
-    //   }
-    //   stages {
-    //     stage('Prepare tag') {
-    //       steps {
-    //         script {
-    //           currentBuild.displayName = "${currentBuild.displayName} : TAG 🏷️"
-    //         }
-    //         // validate image ไม่มี alpha เหลือแล้ว (UI และ API)
-    //         script {
-    //           validateAlpha("PNG-IAPI_WEB-BCC-UI")
-    //         }
-    //         script {
-    //           def job = Jenkins.instance.getItemByFullName("${env.JOB_NAME}")
 
-    //           job.builds.find {
-    //             if(it.result == hudson.model.Result.SUCCESS) {
-    //               // def is_BuildDev = it.actions.find{it instanceof ParametersAction}?.parameters.find{it.name == "BuildDev"}?.value
-    //               // echo "is_BuildDev: ${is_BuildDev}"
-    //               echo "Build name: ${it.name}"
-    //               echo "Build number: ${it.getId()}"
+    stage('Build Tag') {
+      when {
+        expression {
+          params.buildType == 'RELEASE TAG'// && params.chartVersion == env.tagVersion
+        }
+      }
+      stages {
+        stage('Preparing') {
+          steps {
+            script {
+              currentBuild.displayName = "${currentBuild.displayName} : TAG 🏷️"
+            }
+          }
+        }
 
-    //               TAG_LAST_REVISION = it.actions.find{it instanceof hudson.plugins.git.util.BuildData}?.lastBuild
-    //               if(TAG_LAST_REVISION != null) {
-    //                 env.TAG_LAST_REVISION = TAG_LAST_REVISION
-    //                 return true
-    //               }
-    //             }
-    //           }
+        stage('Validate') {
+          steps {
+            script {
+              validateAlpha('PNG-IAPI_WEB-BCC-UI')
+              validateAlpha('PNG-IAPI_WEB-BCC-API')
+            }
+          }
+        }
 
-    //           echo "Last revision tag: ${env.TAG_LAST_REVISION}"
+        stage('Checkout') {
+          steps {
+            script {
+              try {
+                echo 'Checkout - Starting.'
+                gitCheckoutProcess("refs/tags/${env.TAG_NAME_ALPHA}")
+                echo 'Checkout - Completed.'
+              } catch (err) {
+                echo 'Checkout - Failed.'
+                currentBuild.result = 'FAILURE'
+                error(err.message)
+              }
+            }
+          }
+        }
 
-    //           checkout มาจาก tag
-    //           gitCheckout("${env.GIT_BRANCH_NAME}")
-    //         }
-    //       }
-    //     }
-        
-    //     // ลบ alpha ออกจาก index
-    //     // commit && push
-    //   }
-    // }
+        stage('Remove ALPHA from index') {
+          steps {
+            script {
+              try {
+                echo "Remove ALPHA from index - Starting."
+
+                def yaml = readYaml file: "${env.HELM_CHART_DIR}/index.yaml"
+                def chartEntries = yaml.entries["${env.CHART_NAME}"]
+
+                int index = 0
+                while (index < chartEntries.size()) {
+                  if (chartEntries[index]['version'].contains('ALPHA')) {
+                    yaml.entries["${env.CHART_NAME}"].remove(index)
+                  } else {
+                    index++
+                  }
+                }
+
+                writeYaml file: "${env.HELM_CHART_DIR}/index.yaml", data: yaml, overwrite: true
+                echo "Remove ALPHA from index - Completed."
+              } catch(err) {
+                echo "Remove ALPHA from index - Failed."
+                currentBuild.result = 'FAILURE'
+                error(err)
+              }
+            }
+          }
+        }
+
+        stage('Remove ALPHA from assets') {
+          steps {
+            script {
+              try {
+                echo "Remove ALPHA from assets - Starting."
+                sh "rm -f ${env.HELM_CHART_DIR}/assets/*-ALPHA.tgz"
+                echo "Remove ALPHA from assets - Completed."
+              } catch(err) {
+                echo "Remove ALPHA from assets - Failed."
+                currentBuild.result = 'FAILURE'
+                error(err)
+              }
+            }
+          }
+        }
+
+        stage('Replacement') {
+          steps {
+            script {
+              try {
+                echo "Replace - Starting."
+                replaceChart()
+                echo "Replace - Completed."
+              } catch(err) {
+                echo "Replace - Failed."
+                currentBuild.result = 'FAILURE'
+                error(err.message)
+              }
+            }
+          }
+        }
+
+        stage("Package") {
+          steps {
+            script {
+              try {
+                echo "Package - Starting."
+                packageProcess()
+                echo "Package - Completed."
+              } catch (err) {
+                echo "Package - Failed."
+                currentBuild.result = 'FAILURE'
+                error('Package stage failed.')
+              }
+            }
+          }
+        }
+
+        stage('Commit and Push') {
+          steps {
+            script {
+              try {
+                echo 'GIT Commit - Starting.'
+                gitCommitPushProcess()
+                echo 'GIT Commit - Completed.'
+              } catch (err) {
+                echo 'GIT Commit - Failed.'
+                currentBuild.result = 'FAILURE'
+                error(err.message)
+              }
+            }
+          }
+        }
+
+        stage('Push tag') {
+          steps {
+            script {
+              try {
+                echo 'Push tag - Starting.'
+                gitPushTagProcess("${env.TAG_NAME_PRO}")
+                echo 'Push tag - Completed.'
+              } catch (err) {
+                echo 'Push tag - Failed.'
+                currentBuild.result = 'FAILURE'
+                error(err.message)
+              }
+            }
+          }
+
+          post {
+            success {
+              script {
+                if (currentBuild.result == "SUCCESS") {
+                  gitRemoveTagProcess("${env.TAG_NAME_PRE_ALPHA}")
+                  gitRemoveTagProcess("${env.TAG_NAME_ALPHA}")
+                }
+              }
+            }
+          }
+        }
+      }
+    }
   }
 }

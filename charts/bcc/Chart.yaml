@@ -2,7 +2,7 @@ apiVersion: v2
 name: bcc
 description: A Helm chart for Kubernetes
 type: application
-version: "2024.03.00-0006-ALPHA"
+version: "2024.03.00-0007-ALPHA"
 appVersion: "1.0.0"
 dependencies:
   - name: bcc-ui-chart

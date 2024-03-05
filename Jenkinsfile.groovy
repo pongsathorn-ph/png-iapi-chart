@@ -10,7 +10,7 @@ def replaceChart() {
     "{{UI_DEPENDENCY_VERSION}}": "${params.uiDependencyVersion}",
     "{{API_DEPENDENCY_VERSION}}": "${params.apiDependencyVersion}"
   ]
-  replaceTemplate('Chart.yaml', "${env.WORKSPACE}/charts/${params.chartName}/Chart.yaml", replacementMap)
+  replaceTemplate('Chart.tmp', "${env.WORKSPACE}/charts/${params.chartName}/Chart.yaml", replacementMap)
 }
 
 def packageProcess() {

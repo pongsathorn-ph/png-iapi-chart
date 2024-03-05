@@ -32,8 +32,6 @@ def packageProcess() {
 def gitCommitPushProcess() {
   withCredentials([gitUsernamePassword(credentialsId: "${env.GITHUB_CREDENTIAL_ID}", gitToolName: 'Default')]) {
     sh """
-      git config --global user.name 'Jenkins Pipeline'
-      git config --global user.email 'jenkins@localhost'
       git checkout -b ${env.GIT_BRANCH_NAME}
       git add .
       git commit -m 'Update from Jenkins-Pipeline'
